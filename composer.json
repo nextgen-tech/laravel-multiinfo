@@ -1,0 +1,31 @@
+{
+    "name": "nextgen-tech/laravel-multiinfo",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Krzysztof Grabania",
+            "email": "info@nextgen-tech.pl"
+        }
+    ],
+    "require": {
+        "laravel/framework": "^7.0|^8.0",
+        "nextgen-tech/multiinfo": "^0.0.2"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^0.12.85",
+        "friendsofphp/php-cs-fixer": "^3.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "NGT\\Laravel\\MultiInfo\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "NGT\\Laravel\\MultiInfo\\ServiceProvider"
+            ]
+        }
+    }
+}
