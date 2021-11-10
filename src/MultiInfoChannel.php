@@ -5,21 +5,33 @@ declare(strict_types=1);
 namespace NGT\Laravel\MultiInfo;
 
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Notifications\Events\NotificationFailed;
 use Illuminate\Notifications\Notification;
 use InvalidArgumentException;
 use LogicException;
 use NGT\MultiInfo\Contracts\SendableRequest;
 use NGT\MultiInfo\Handler;
 use NGT\MultiInfo\Requests\SendSmsLongRequest;
+use NGT\MultiInfo\Responses\ErrorResponse;
 
 class MultiInfoChannel
 {
+    public const CHANNEL_NAME = 'multiinfo';
+
     /**
      * The container instance.
      *
      * @var \Illuminate\Contracts\Container\Container
      */
     protected Container $container;
+
+    /**
+     * The event dispatcher instance.
+     *
+     * @var \Illuminate\Contracts\Events\Dispatcher
+     */
+    protected Dispatcher $eventDispatcher;
 
     /**
      * The communication handler instance.
@@ -32,12 +44,17 @@ class MultiInfoChannel
      * The notification channel constructor.
      *
      * @param \Illuminate\Contracts\Container\Container $container
+     * @param \Illuminate\Contracts\Events\Dispatcher   $eventDispatcher
      * @param \NGT\MultiInfo\Handler                    $handler
      */
-    public function __construct(Container $container, Handler $handler)
-    {
-        $this->container = $container;
-        $this->handler   = $handler;
+    public function __construct(
+        Container $container,
+        Dispatcher $eventDispatcher,
+        Handler $handler
+    ) {
+        $this->container       = $container;
+        $this->eventDispatcher = $eventDispatcher;
+        $this->handler         = $handler;
     }
 
     /**
@@ -46,12 +63,12 @@ class MultiInfoChannel
      * @param mixed                                  $notifiable
      * @param \Illuminate\Notifications\Notification $notification
      *
-     * @return \NGT\MultiInfo\Responses\SendSmsLongResponse|\NGT\MultiInfo\Responses\SendSmsResponse|null
+     * @return \NGT\MultiInfo\Contracts\Response|null
      */
     public function send($notifiable, Notification $notification)
     {
         $request     = $this->buildRequest($notification->toMultiInfo($notifiable)); // @phpstan-ignore-line
-        $destination = $notifiable->routeNotificationFor('multiinfo', $notification);
+        $destination = $notifiable->routeNotificationFor(static::CHANNEL_NAME, $notification);
 
         if (!$request instanceof SendableRequest || empty($destination)) {
             return null;
@@ -59,7 +76,18 @@ class MultiInfoChannel
 
         $request->setDestination($destination);
 
-        return $this->handler->handle($request); // @phpstan-ignore-line
+        $response = $this->handler->handle($request);
+
+        if ($response instanceof ErrorResponse) {
+            $this->eventDispatcher->dispatch(
+                new NotificationFailed($notifiable, $notification, static::CHANNEL_NAME, [
+                    'code'    => $response->getCode(),
+                    'message' => $response->getMessage(),
+                ])
+            );
+        }
+
+        return $response;
     }
 
     /**
