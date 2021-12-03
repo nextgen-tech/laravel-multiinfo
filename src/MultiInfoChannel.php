@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NGT\Laravel\MultiInfo;
 
+use Exception;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Notifications\Events\NotificationFailed;
@@ -14,6 +15,7 @@ use NGT\MultiInfo\Contracts\SendableRequest;
 use NGT\MultiInfo\Handler;
 use NGT\MultiInfo\Requests\SendSmsLongRequest;
 use NGT\MultiInfo\Responses\ErrorResponse;
+use Throwable;
 
 class MultiInfoChannel
 {
@@ -63,31 +65,37 @@ class MultiInfoChannel
      * @param mixed                                  $notifiable
      * @param \Illuminate\Notifications\Notification $notification
      *
-     * @return \NGT\MultiInfo\Contracts\Response|null
+     * @return bool
      */
-    public function send($notifiable, Notification $notification)
+    public function send($notifiable, Notification $notification): bool
     {
-        $request     = $this->buildRequest($notification->toMultiInfo($notifiable)); // @phpstan-ignore-line
-        $destination = $notifiable->routeNotificationFor(static::CHANNEL_NAME, $notification);
+        try {
+            $request     = $this->buildRequest($notification->toMultiInfo($notifiable)); // @phpstan-ignore-line
+            $destination = $notifiable->routeNotificationFor(static::CHANNEL_NAME, $notification);
 
-        if (!$request instanceof SendableRequest || empty($destination)) {
-            return null;
-        }
+            if (empty($destination)) {
+                throw new LogicException('Cannot send message without destination.');
+            }
 
-        $request->setDestination($destination);
+            $request->setDestination($destination);
 
-        $response = $this->handler->handle($request);
+            $response = $this->handler->handle($request);
 
-        if ($response instanceof ErrorResponse) {
+            if ($response instanceof ErrorResponse) {
+                throw new Exception($response->getMessage(), $response->getCode());
+            }
+        } catch (Throwable $e) {
             $this->eventDispatcher->dispatch(
                 new NotificationFailed($notifiable, $notification, static::CHANNEL_NAME, [
-                    'code'    => $response->getCode(),
-                    'message' => $response->getMessage(),
+                    'code'    => $e->getCode(),
+                    'message' => $e->getMessage(),
                 ])
             );
+
+            return false;
         }
 
-        return $response;
+        return true;
     }
 
     /**
