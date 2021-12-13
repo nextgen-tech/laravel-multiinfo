@@ -1,5 +1,9 @@
 # Laravel MultiInfo
 
+## v1.2.1 - 2021-12-13
+
+* Add "ChannelManager" to list of provided classes by Service Provider
+
 ## v1.2.0 - 2021-12-03
 
 * Return boolean from notification channel indicating response status
