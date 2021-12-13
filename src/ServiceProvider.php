@@ -102,6 +102,8 @@ class ServiceProvider extends BaseServiceProvider implements DeferrableProvider
     public function provides(): array
     {
         return [
+            ChannelManager::class, // required for extending
+
             Certificate::class,
             CredentialsContract::class,
             ConnectionContract::class,
